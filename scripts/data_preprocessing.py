@@ -177,14 +177,7 @@ class DataPreprocessor:
         columns_without_outliers = [col for col in data.columns if col not in columns_with_outliers]
         if columns_without_outliers:
             self._log_info(f"No outliers detected in columns: {', '.join(columns_without_outliers)}")
-    def _log_info(self, message):
-        """
-        Logs information to console or logger if set.
-        """
-        if hasattr(self, 'logger') and self.logger:
-            self.logger.info(message)
-        else:
-            print(message)
+ 
 
     def handle_outliers(self, data_dict, outliers_dict):
         """
