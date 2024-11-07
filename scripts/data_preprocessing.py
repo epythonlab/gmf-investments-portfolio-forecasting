@@ -272,22 +272,7 @@ class DataPreprocessor:
         self._log_info(f"Basic statistics calculated for data:\n{analysis_results}")
         return analysis_results
 
-    def preprocess_symbol_data(self, symbol):
-        """
-        Full preprocessing pipeline for a given symbol: load, clean, analyze, and normalize data.
 
-        Parameters:
-        - symbol (str): Stock symbol to preprocess.
-
-        Returns:
-        - pd.DataFrame: Fully processed DataFrame for analysis.
-        """
-        data = self.load_data(symbol)
-        self.inspect_data(data)  # Inspect data before any processing
-        data_cleaned = self.clean_data(data)
-        self.analyze_data(data_cleaned)
-        data_normalized = self.normalize_data(data_cleaned)
-        return data_normalized
 
     def _log_info(self, message):
         """Logs informational messages."""

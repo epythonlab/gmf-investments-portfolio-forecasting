@@ -12,3 +12,4 @@ README.pdf
 logs/
 mlruns/
 *.pkl
+*.csv

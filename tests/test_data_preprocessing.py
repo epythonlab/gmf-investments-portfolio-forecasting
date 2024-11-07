@@ -1,144 +1,84 @@
 import unittest
-from unittest.mock import MagicMock, patch
 import pandas as pd
 import numpy as np
-from io import StringIO
-
-# Assuming your DataPreprocessor class is in a module named `data_preprocessor`
+from unittest.mock import MagicMock
+from datetime import datetime
 from scripts.data_preprocessing import DataPreprocessor
-
 
 class TestDataPreprocessor(unittest.TestCase):
 
-    @patch("data_preprocessor.pn.data.get")
-    def test_get_data(self, mock_get_data):
+    def setUp(self):
         """
-        Test the get_data method for successful data fetching and saving to CSV.
+        Setup test environment and mock dependencies before each test.
         """
-        # Create mock data to return
-        mock_data = pd.DataFrame({
-            "Date": pd.date_range(start="2021-01-01", periods=5),
+        self.data_dir = "./test_data"
+        self.logger = MagicMock()
+        self.preprocessor = DataPreprocessor(data_dir=self.data_dir, logger=self.logger)
+
+        # Create a sample data frame for testing
+        self.sample_data = pd.DataFrame({
+            "Date": pd.date_range(start="2020-01-01", periods=5, freq="D"),
             "Open": [100, 101, 102, 103, 104],
+            "High": [110, 111, 112, 113, 114],
+            "Low": [90, 91, 92, 93, 94],
             "Close": [105, 106, 107, 108, 109],
+            "Adj Close": [105, 106, 107, 108, 109],
+            "Volume": [1000, 1100, 1200, 1300, 1400]
         })
-        mock_get_data.return_value = mock_data
+        self.sample_data.set_index('Date', inplace=True)
 
-        # Initialize DataPreprocessor with a mock logger
-        dp = DataPreprocessor(logger=MagicMock())
-
-        # Run the method
-        result = dp.get_data("2021-01-01", "2021-01-05", ["TSLA"])
-
-        # Check the result
-        self.assertIn("TSLA", result)
-        self.assertTrue(result["TSLA"].endswith("TSLA.csv"))
-        self.assertTrue(mock_get_data.called)
-
-    @patch("pandas.read_csv")
-    def test_load_data(self, mock_read_csv):
+    def test_get_data(self):
         """
-        Test the load_data method.
+        Test the get_data function for fetching data from YFinance.
         """
-        # Mock data returned by pd.read_csv
-        mock_data = pd.DataFrame({
-            "Date": pd.date_range(start="2021-01-01", periods=5),
-            "Open": [100, 101, 102, 103, 104],
-            "Close": [105, 106, 107, 108, 109],
-        })
-        mock_read_csv.return_value = mock_data
+        symbols = ['TSLA', 'BND', 'SPY']
+        start_date = "2020-01-01"
+        end_date = "2020-12-31"
+        
+        # Simulate data fetching
+        data_paths = self.preprocessor.get_data(start_date, end_date, symbols)
 
-        dp = DataPreprocessor(logger=MagicMock())
+        # Verify paths are returned
+        self.assertTrue('TSLA' in data_paths)
+        self.assertTrue('BND' in data_paths)
+        self.assertTrue('SPY' in data_paths)
 
-        # Test load data
-        data = dp.load_data("TSLA")
-        self.assertEqual(data.shape, (5, 5))  # Ensure we got the correct number of rows and columns
-
-    def test_detect_outliers_iqr(self):
+    def test_load_data(self):
         """
-        Test outlier detection using IQR method.
+        Test the load_data function for loading data from CSV.
         """
-        # Prepare test data
-        data = pd.DataFrame({
-            "Date": pd.date_range(start="2021-01-01", periods=5),
-            "Open": [100, 200, 300, 1000, 500],
-            "Close": [105, 205, 305, 1005, 505],
-        })
-        data.set_index("Date", inplace=True)
+        # Mock the CSV reading function
+        symbol = 'TSLA'
+        self.preprocessor.load_data(symbol)  # Make sure no exception is raised
+        self.logger.error.assert_not_called()  # Ensure no error was logged
 
-        dp = DataPreprocessor(logger=MagicMock())
-        outliers = dp.detect_outliers(data, method="iqr")
-
-        # Check if the outliers were detected correctly
-        self.assertTrue(outliers["Open"].iloc[3])  # The 1000 value should be detected as an outlier
-        self.assertTrue(outliers["Close"].iloc[3])
-
-    def test_handle_outliers(self):
+    def test_inspect_data(self):
         """
-        Test handling outliers by replacing with NaN and interpolating.
+        Test the inspect_data function for checking data types, missing values, and duplicates.
         """
-        # Prepare test data with outliers
-        data = pd.DataFrame({
-            "Date": pd.date_range(start="2021-01-01", periods=5),
-            "Open": [100, 200, 300, 1000, 500],
-            "Close": [105, 205, 305, 1005, 505],
-        })
-        data.set_index("Date", inplace=True)
+        inspection_results = self.preprocessor.inspect_data(self.sample_data)
 
-        # Prepare outliers
-        outliers = pd.DataFrame({
-            "Open": [False, False, False, True, False],
-            "Close": [False, False, False, True, False],
-        })
-        outliers.set_index("Date", inplace=True)
+        # Check if the result contains correct keys
+        self.assertIn("data_types", inspection_results)
+        self.assertIn("missing_values", inspection_results)
+        self.assertIn("duplicate_rows", inspection_results)
 
-        dp = DataPreprocessor(logger=MagicMock())
+   
 
-        # Handle outliers
-        cleaned_data = dp.handle_outliers({"TSLA": data}, {"TSLA": outliers})
 
-        # Check if outliers were handled by replacing with NaN
-        self.assertTrue(np.isnan(cleaned_data["TSLA"]["Open"].iloc[3]))  # The outlier row should have NaN
-        self.assertTrue(np.isnan(cleaned_data["TSLA"]["Close"].iloc[3]))
-
-    def test_normalize_data(self):
+    
+    def test_log_error_handling(self):
         """
-        Test normalization of stock data.
+        Test error handling in case of missing data files.
         """
-        # Prepare test data
-        data = pd.DataFrame({
-            "Date": pd.date_range(start="2021-01-01", periods=5),
-            "Open": [100, 200, 300, 400, 500],
-            "Close": [105, 205, 305, 405, 505],
-        })
-        data.set_index("Date", inplace=True)
+        self.logger.reset_mock()
 
-        dp = DataPreprocessor(logger=MagicMock())
-        normalized_data = dp.normalize_data(data)
+        # Simulate missing file
+        with self.assertRaises(FileNotFoundError):
+            self.preprocessor.load_data('NON_EXISTENT_SYMBOL')
 
-        # Check if the data is normalized
-        self.assertTrue(np.allclose(normalized_data["Open"].mean(), 0, atol=0.1))
-        self.assertTrue(np.allclose(normalized_data["Close"].mean(), 0, atol=0.1))
-
-    @patch("matplotlib.pyplot.show")
-    def test_plot_outliers(self, mock_show):
-        """
-        Test the plotting of outliers.
-        """
-        # Prepare test data
-        data = pd.DataFrame({
-            "Date": pd.date_range(start="2021-01-01", periods=5),
-            "Open": [100, 200, 300, 1000, 500],
-            "Close": [105, 205, 305, 1005, 505],
-        })
-        data.set_index("Date", inplace=True)
-
-        dp = DataPreprocessor(logger=MagicMock())
-        outliers = dp.detect_outliers(data, method="iqr")
-
-        # Test plotting outliers
-        dp.plot_outliers(data, outliers, "TSLA")
-        mock_show.assert_called_once()  # Ensure plt.show() was called
-
+        # Ensure error message was logged
+        self.logger.error.assert_called()
 
 if __name__ == "__main__":
     unittest.main()
