@@ -1,0 +1,5 @@
+pytest
+matplotlib
+pandas
+scikit-learn
+pynance
