@@ -1,0 +1,15 @@
+### AL ###
+# Exclude the following files and directories from remote repo
+.venv/  
+.env
+__pycache__/
+*.pyc
+.DS_Store
+Data/
+data/
+data.zip
+README.pdf
+logs/
+mlruns/
+*.pkl
+*.csv
