@@ -1,5 +1,7 @@
 pytest
 matplotlib
+seaborn
+numpy
 pandas
 scikit-learn
 pynance
