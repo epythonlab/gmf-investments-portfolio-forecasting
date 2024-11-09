@@ -221,11 +221,11 @@ class ModelTrainer:
                 if model_name == 'LSTM':
                     # Save the LSTM model
                     model = model_data['model']
-                    model.save(f'{model_name}_best_model.h5')
+                    model.save(f'../data/{model_name}_best_model.h5')
                     self.logger.info(f"{model_name} model saved successfully.")
                 else:
                     # Save the ARIMA or SARIMA model using joblib
-                    joblib.dump(model_data, f'{model_name}_best_model.pkl')
+                    joblib.dump(model_data, f'../data/{model_name}_best_model.pkl')
                     self.logger.info(f"{model_name} model saved successfully.")
             else:
                 self.logger.error(f"{model_name} model not found for saving.")
