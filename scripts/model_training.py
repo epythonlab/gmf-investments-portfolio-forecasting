@@ -31,26 +31,37 @@ class ModelTrainer:
         self.scaler = MinMaxScaler(feature_range=(0, 1))  # Initialize the scaler
 
     def prepare_data(self, train_size=0.8):
-        """
-        Prepare the data for training and testing, and apply scaling.
-        """
-        try:
-            self.df.index = pd.to_datetime(self.df.index)
-            self.df = self.df.resample('D').ffill().dropna()
+      """
+      Prepare the data for training and testing, and apply scaling.
+      Ensure that the data is sorted in ascending order.
+      """
+      try:
+          self.df.index = pd.to_datetime(self.df.index)
 
-            split_idx = int(len(self.df) * train_size)
-            self.train, self.test = self.df[:split_idx], self.df[split_idx:]
-            self.logger.info(f"Data split: {len(self.train)} train, {len(self.test)} test")
+          # Ensure the data is in ascending order (from past to present)
+          if self.df.index.is_monotonic_decreasing:
+              self.df = self.df.sort_index(ascending=True)
+              self.logger.info("Data was in descending order. It has been sorted in ascending order.")
+          else:
+              self.logger.info("Data is already in ascending order.")
 
-            scaler = MinMaxScaler(feature_range=(0, 1))
-            train_scaled = scaler.fit_transform(self.train[[self.column]])
-            test_scaled = scaler.transform(self.test[[self.column]])
+          self.df = self.df.resample('D').ffill().dropna()
 
-            self.train.loc[:, self.column] = train_scaled
-            self.test.loc[:, self.column] = test_scaled
-        except Exception as e:
-            self.logger.error(f"Error in preparing data: {e}")
-            raise ValueError("Data preparation failed")
+          # Split into training and testing sets
+          split_idx = int(len(self.df) * train_size)
+          self.train, self.test = self.df[:split_idx], self.df[split_idx:]
+          self.logger.info(f"Data split: {len(self.train)} train, {len(self.test)} test")
+
+          # Scaling the data
+          train_scaled = self.scaler.fit_transform(self.train[[self.column]])
+          test_scaled = self.scaler.transform(self.test[[self.column]])
+
+          self.train.loc[:, self.column] = train_scaled
+          self.test.loc[:, self.column] = test_scaled
+      except Exception as e:
+          self.logger.error(f"Error in preparing data: {e}")
+          raise ValueError("Data preparation failed")
+
         
     def train_arima(self):
         """Train ARIMA model using auto_arima."""
@@ -213,7 +224,7 @@ class ModelTrainer:
             self.logger.error(f"Error in plotting results: {e}")
             raise ValueError("Plotting results failed")
     
-    def save_best_model(self, model_name='LSTM'):
+    def save_best_model(self, model_path, model_name='LSTM'):
         """Save the best model for future use."""
         try:
             if model_name in self.model:
@@ -221,11 +232,11 @@ class ModelTrainer:
                 if model_name == 'LSTM':
                     # Save the LSTM model
                     model = model_data['model']
-                    model.save(f'../data/{model_name}_best_model.h5')
+                    model.save(f'{model_path}{model_name}_best_model.keras')
                     self.logger.info(f"{model_name} model saved successfully.")
                 else:
                     # Save the ARIMA or SARIMA model using joblib
-                    joblib.dump(model_data, f'../data/{model_name}_best_model.pkl')
+                    joblib.dump(model_data, f'{model_path}{model_name}_best_model.pkl')
                     self.logger.info(f"{model_name} model saved successfully.")
             else:
                 self.logger.error(f"{model_name} model not found for saving.")
