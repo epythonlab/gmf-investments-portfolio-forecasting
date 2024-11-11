@@ -6,3 +6,5 @@ pandas
 scikit-learn
 pynance
 statsmodels
+pmdarima
+tensorflow
