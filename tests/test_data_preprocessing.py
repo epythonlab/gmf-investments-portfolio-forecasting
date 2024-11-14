@@ -1,9 +1,10 @@
+# tests/test_data_preprocessing.py
+
 import unittest
 import pandas as pd
-import numpy as np
 from unittest.mock import MagicMock
-from datetime import datetime
 from scripts.data_preprocessing import DataPreprocessor
+import logging
 
 class TestDataPreprocessor(unittest.TestCase):
 
@@ -12,7 +13,11 @@ class TestDataPreprocessor(unittest.TestCase):
         Setup test environment and mock dependencies before each test.
         """
         self.data_dir = "./test_data"
-        self.logger = MagicMock()
+        # Set up a logger to capture log messages
+        self.logger = logging.getLogger("DataAnalysisTestLogger")
+        self.logger.setLevel(logging.ERROR)
+        
+        # Initialize DataPreprocessor with a mock logger
         self.preprocessor = DataPreprocessor(data_dir=self.data_dir, logger=self.logger)
 
         # Create a sample data frame for testing
@@ -22,11 +27,13 @@ class TestDataPreprocessor(unittest.TestCase):
             "High": [110, 111, 112, 113, 114],
             "Low": [90, 91, 92, 93, 94],
             "Close": [105, 106, 107, 108, 109],
-            "Adj Close": [105, 106, 107, 108, 109],
             "Volume": [1000, 1100, 1200, 1300, 1400]
         })
         self.sample_data.set_index('Date', inplace=True)
-
+        
+        # Mock the logger to catch error messages
+        self.analysis._log_error = MagicMock()
+        
     def test_get_data(self):
         """
         Test the get_data function for fetching data from YFinance.
@@ -62,9 +69,6 @@ class TestDataPreprocessor(unittest.TestCase):
         self.assertIn("data_types", inspection_results)
         self.assertIn("missing_values", inspection_results)
         self.assertIn("duplicate_rows", inspection_results)
-
-   
-
 
     
     def test_log_error_handling(self):

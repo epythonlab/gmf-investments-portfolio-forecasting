@@ -1,9 +1,8 @@
-import os
-import pandas as pd
+# scripts/data_analysis.py
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
-import math
+
+sns.set(style="whitegrid")  # Set Seaborn style for improved aesthetics
 
 class DataAnalysis:
     def __init__(self, data_dir='../data/', logger=None):
@@ -22,8 +21,6 @@ class DataAnalysis:
         if self.logger:
             self.logger.error(message)
         print(f"Error: {message}")
-
-    
 
     def plot_percentage_change(self, data_dict):
         """Plots the daily percentage change in the closing price."""
@@ -47,8 +44,6 @@ class DataAnalysis:
 
     def analyze_price_trend(self, data_dict, window_size=30):
         """Plots the closing price, rolling mean, and volatility (rolling std) over time for multiple symbols."""
-
-        sns.set(style="whitegrid")  # Set Seaborn style for improved aesthetics
 
         for symbol, df in data_dict.items():
             try:
@@ -92,7 +87,6 @@ class DataAnalysis:
             except Exception as e:
                 self._log_error(f"Error plotting data for {symbol}: {str(e)}")
 
-        
 
     def plot_unusual_daily_return(self, data_dict, threshold=2.5):
         """
@@ -102,12 +96,11 @@ class DataAnalysis:
         - data_dict (dict): Dictionary with stock symbols as keys and their DataFrames as values.
         - threshold (float): Threshold (in terms of standard deviations) to define unusual returns.
         """
-        sns.set(style="whitegrid")
-
+       
         for symbol, df in data_dict.items():
             try:
                 if df is None or df.empty:
-                    print(f"DataFrame for {symbol} is empty.")
+                    self._log_error(f"DataFrame for {symbol} is empty.")
                     continue
 
                 # Calculate daily returns
@@ -138,7 +131,7 @@ class DataAnalysis:
                 plt.show()
 
             except Exception as e:
-                print(f"Error plotting unusual daily returns for {symbol}: {str(e)}")
+                self._log_error(f"Error plotting unusual daily returns for {symbol}: {str(e)}")
  
 
     
