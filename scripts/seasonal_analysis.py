@@ -31,7 +31,7 @@ class SeasonalAnalysis:
         return decomposition
     
     def analyze_trends_and_seasonality(self, data_dict, threshold=0.05):
-        """Analyze seasonality and trends of Tesla stock price by decomposing it."""
+        """Analyze seasonality and trends of stock price by decomposing it."""
         sns.set(style="whitegrid")
 
         for symbol, df in data_dict.items():
@@ -42,22 +42,22 @@ class SeasonalAnalysis:
 
                 # Perform ADF test for stationarity
                 p_value = self.adf_test(df['Close'])
-                
                 print(f"ADF test p-value for {symbol}: {p_value}")
 
-                # If the p-value is greater than the threshold, apply differencing
+                # If non-stationary, apply differencing
                 if p_value > threshold:
                     print(f"{symbol} series is non-stationary. Differencing the series.")
                     df['Close'] = self.difference_series(df['Close'])
-
-                # After differencing, check again
-                p_value = self.adf_test(df['Close'])
-                print(f"ADF test p-value after differencing for {symbol}: {p_value}")
+                
+                # Ensure series has at least 504 points post-differencing
+                if len(df['Close'].dropna()) < 504:
+                    self._log_error(f"Series length insufficient for decomposition; requires at least 504 observations.")
+                    continue
 
                 # Decompose the series into trend, seasonal, and residual components
                 decomposition = self.decompose_series(df['Close'])
-
-                # Plot the decomposition results
+                
+                # Plot decomposition
                 plt.figure(figsize=(12, 8))
                 plt.subplot(411)
                 plt.plot(df['Close'], label=f'{symbol} Closing Price')
@@ -84,3 +84,4 @@ class SeasonalAnalysis:
 
             except Exception as e:
                 self._log_error(f"Error analyzing {symbol}: {str(e)}")
+
