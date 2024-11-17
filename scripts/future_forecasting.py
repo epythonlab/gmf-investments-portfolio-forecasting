@@ -6,11 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import seaborn as sns
-import logging
 
-# Set up basic logging configuration
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class ModelForecaster:
     def __init__(self, historical_csv, forecast_csv, logger=None, column='Close'):
@@ -26,71 +22,86 @@ class ModelForecaster:
         self.historical_data = historical_csv
         self.forecast_csv = forecast_csv
         self.column = column
-        self.logger = logger or logging.getLogger()
+        self.logger = logger
         self.predictions = {}
 
         # Load data
         self._load_data()
 
-    def _load_data(self):
-          """
-          Load historical and forecast data from CSV files.
-          """
-          try:
-              if not self.forecast_csv:
-                  raise ValueError("Both historical and forecast CSV file paths must be provided.")
-              
-              # # # Load historical data
-              # self.historical_data = self.historical_csv[self.column]
-              
-              # Load forecast data
-              self.forecast_data = pd.read_csv(self.forecast_csv, index_col=0, parse_dates=True)
-              self.logger.info("Historical and forecast data loaded successfully.")
-              
-              # Extract forecasted values (assuming forecast CSV has a 'forecast' column)
-              if 'LSTM' not in self.forecast_data.columns:
-                  raise ValueError("Forecast CSV must have a 'forecast' column.")
-              
-              self.predictions['forecast'] = self.forecast_data['forecast'].values
-              self.forecast_dates = self.forecast_data.index
 
-          except Exception as e:
-              self.logger.error(f"Error loading data: {e}")
-              raise ValueError("Error loading data")
+    def _load_data(self):
+        """
+        Load historical and forecast data from CSV files.
+        """
+        try:
+            # Load historical data
+            if isinstance(self.historical_data, str):
+                self.historical_data = pd.read_csv(self.historical_data, index_col=0, parse_dates=True)
+
+            # Ensure the historical data contains the required column
+            if self.column not in self.historical_data.columns:
+                raise ValueError(f"Historical data must have a '{self.column}' column.")
+
+            # Load forecast data
+            self.forecast_data = pd.read_csv(self.forecast_csv, index_col=0, parse_dates=True)
+
+            # Ensure the forecast data contains the required columns
+            if 'forecast' not in self.forecast_data.columns:
+                raise ValueError("Forecast CSV must have a 'forecast' column.")
+
+            # Extract forecast values
+            self.predictions['forecast'] = self.forecast_data['forecast'].values
+            self.forecast_dates = self.forecast_data.index
+
+            self.logger.info("Historical and forecast data loaded successfully.")
+        except Exception as e:
+            self.logger.error(f"Error loading data: {e}")
+            raise ValueError("Error loading data")
+
+
 
     def plot_forecast(self):
-      """
-      Plot the historical data alongside the forecast data with confidence intervals.
-      """
-      try:
-          # Combine historical and forecast dates
-          forecast_dates = self.forecast_dates
-          all_dates = self.historical_data.index.append(forecast_dates)
+        """
+        Plot the historical data alongside the forecast data with confidence intervals.
+        """
+        try:
+            # Historical and forecast dates
+            historical_dates = self.historical_data.index
+            forecast_dates = self.forecast_dates
 
-          # Set up the plot
-          plt.figure(figsize=(15, 8))
-          plt.plot(self.historical_data.index, self.historical_data[self.column], label='Actual', color='blue', linewidth=2)
+            # Set up the plot
+            plt.figure(figsize=(15, 8))
 
-          # Plot the forecast data
-          forecast = self.predictions['forecast']
-          plt.plot(forecast_dates, forecast, label='Forecast', linestyle='--', color='red')
-         # Plot the confidence intervals if they exist
-     
-          plt.fill_between(forecast_dates, self.forecast_data['conf_lower'], self.forecast_data['conf_upper'], color='red', alpha=0.25, label='95% Confidence Interval')
+            # Plot historical data
+            plt.plot(historical_dates, self.historical_data[self.column], label='Actual', color='blue', linewidth=2)
 
-          # Set up labels and title
-          plt.xticks(rotation=45)
-          plt.title("Historical vs. Forecast Data with Confidence Intervals", fontsize=16)
-          plt.xlabel("Date", fontsize=14)
-          plt.ylabel(self.column, fontsize=14)
-          plt.legend(loc='best')
-          sns.set(style="whitegrid")
-          plt.tight_layout()
-          plt.show()
+            # Plot forecast data
+            forecast = self.predictions['forecast']
+            plt.plot(forecast_dates, forecast, label='Forecast', linestyle='--', color='red')
 
-      except Exception as e:
-          self.logger.error(f"Error in plotting forecasts: {e}")
-          raise ValueError("Error plotting forecasts")
+            # Plot confidence intervals
+            plt.fill_between(
+                forecast_dates,
+                self.forecast_data['conf_lower'],
+                self.forecast_data['conf_upper'],
+                color='red', alpha=0.25, label='95% Confidence Interval'
+            )
+
+            # Set up labels and title
+            plt.xticks(rotation=45)
+            plt.title("Historical vs. Forecast Data with Confidence Intervals", fontsize=16)
+            plt.xlabel("Date", fontsize=14)
+            plt.ylabel(self.column, fontsize=14)
+            plt.legend(loc='best')
+            sns.set(style="whitegrid")
+            plt.tight_layout()
+            plt.show()
+
+        except Exception as e:
+            self.logger.error(f"Error in plotting forecasts: {e}")
+            raise ValueError("Error plotting forecasts")
+
+
 
     def analyze_forecast(self, threshold=0.05):
         """

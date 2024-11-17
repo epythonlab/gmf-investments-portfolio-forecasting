@@ -7,7 +7,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler
-import joblib
+
 from tensorflow.keras.models import save_model
 
 class ModelTrainer:
@@ -68,32 +68,39 @@ class ModelTrainer:
     def train_arima(self):
         """Train ARIMA model using auto_arima."""
         try:
+            # Check if train and column are valid
+            if self.train is None or self.column not in self.train.columns:
+                raise ValueError(f"Invalid data: 'train' is None or '{self.column}' column is missing.")
+            
             self.logger.info("Training ARIMA model")
             model = pm.auto_arima(self.train[self.column], seasonal=False, trace=True, error_action='ignore',
-                                  suppress_warnings=True, stepwise=True)
+                                suppress_warnings=True, stepwise=True)
             self.model['ARIMA'] = model
             print(model.summary())
             self.logger.info(f"ARIMA model trained with parameters: {model.get_params()}")
         except Exception as e:
             self.logger.error(f"Error in ARIMA training: {e}")
-            raise ValueError("ARIMA model training failed")
+            raise ValueError("ARIMA model training failed") from e
 
     def train_sarima(self, seasonal_period=5):
         """Train SARIMA model using auto_arima."""
         try:
+            # Check if train and column are valid
+            if self.train is None or self.column not in self.train.columns:
+                raise ValueError(f"Invalid data: 'train' is None or '{self.column}' column is missing.")
+            
             self.logger.info("Training SARIMA model")
             model = pm.auto_arima(self.train[self.column], seasonal=True, m=seasonal_period,
-                                  start_p=0, start_q=0, max_p=3, max_q=3, d=1, D=1,
-                                  trace=True, error_action='ignore', suppress_warnings=True)
+                                start_p=0, start_q=0, max_p=3, max_q=3, d=1, D=1,
+                                trace=True, error_action='ignore', suppress_warnings=True)
             self.model['SARIMA'] = model
             print(model.summary())
             self.logger.info(f"SARIMA model trained with parameters: {model.get_params()}")
         except Exception as e:
             self.logger.error(f"Error in SARIMA training: {e}")
-            raise ValueError("SARIMA model training failed")
+            raise ValueError("SARIMA model training failed") from e
 
        
-
     def _create_sequence(self, data, seq_length=60):
         """Create sequences of data for LSTM."""
         xs, ys = [], []
@@ -226,112 +233,100 @@ class ModelTrainer:
             self.logger.error(f"Error in plotting results: {e}")
             raise ValueError("Plotting results failed")
     
-    def save_best_model(self, model_path, model_name='LSTM'):
-        """Save the best model for future use."""
-        try:
-            if model_name in self.model:
-                model_data = self.model[model_name]
-                if model_name == 'LSTM':
-                    # Save the LSTM model
-                    model = model_data['model']
-                    model.save(f'{model_path}{model_name}_best_model.keras')
-                    self.logger.info(f"{model_name} model saved successfully.")
-                else:
-                    # Save the ARIMA or SARIMA model using joblib
-                    joblib.dump(model_data, f'{model_path}{model_name}_best_model.pkl')
-                    self.logger.info(f"{model_name} model saved successfully.")
-            else:
-                self.logger.error(f"{model_name} model not found for saving.")
-        except Exception as e:
-            self.logger.error(f"Error saving {model_name} model: {e}")
-            raise ValueError(f"Model saving failed for {model_name}")
 
     def forecast(self, months=12, output_file='forecast_results.csv', best_model=None, alpha=0.05):
-      """
-      Generate forecasts for 6 to 12 months into the future and save to CSV.
+        """
+        Generate forecasts for 6 to 12 months into the future and save to CSV.
 
-      Parameters:
-      months (int): Number of months to forecast. Accepts 6 or 12.
-      output_file (str): Path to save the forecast results as a CSV file.
-      best_model (str, optional): The best model's name. If None, selects based on lowest MAE.
-      alpha (float): Significance level for prediction intervals (default is 5%).
-      """
-      # Validate input months
-      if months not in [6, 12]:
-          raise ValueError("Months should be either 6 or 12.")
-      # Ensure data is sorted in ascending order by date
-      if self.df.index.is_monotonic_decreasing:
-          self.df = self.df.sort_index(ascending=True)
-          self.logger.info("Data sorted in ascending order for forecasting.")
-      # Convert months to trading days
-      periods = 21 * months  # Assuming 21 trading days per month
+        Parameters:
+        months (int): Number of months to forecast. Accepts 6 or 12.
+        output_file (str): Path to save the forecast results as a CSV file.
+        best_model (str, optional): The best model's name. If None, selects based on lowest MAE.
+        alpha (float): Significance level for prediction intervals (default is 5%).
+        """
+        
+        # Validate input months
+        if months not in [6, 12]:
+            raise ValueError("Months should be either 6 or 12.")
+        
+        # Ensure data is sorted in ascending order by date
+        if self.df.index.is_monotonic_decreasing:
+            self.df = self.df.sort_index(ascending=True)
+            self.logger.info("Data sorted in ascending order for forecasting.")
+        
+        # Convert months to trading days (assuming 21 trading days per month)
+        periods = 21 * months
 
-      # Determine the best model if not provided
-      if best_model is None:
-          best_model = min(self.metric, key=lambda x: self.metric[x]['MAE'])  # Choose based on lowest MAE
-          self.logger.info(f"Best model selected based on MAE: {best_model}")
+        # Ensure self.metric is populated (models must be evaluated first)
+        if not self.metric:
+            raise ValueError("No models have been trained or evaluated. Please train and evaluate models first.")
 
-      try:
-          # Prepare forecast date range
-          forecast_dates = pd.date_range(start=self.df.index[-1] + pd.Timedelta(days=1), periods=periods, freq='D')
-          forecast_data = pd.DataFrame(index=forecast_dates, columns=[best_model])
+        # Determine the best model if not provided
+        if best_model is None:
+            best_model = min(self.metric, key=lambda x: self.metric[x]['MAE'])  # Choose based on lowest MAE
+            self.logger.info(f"Best model selected based on MAE: {best_model}")
 
-          # Forecast based on model type
-          model_data = self.model.get(best_model)
-          if not model_data:
-              raise ValueError(f"Model '{best_model}' is not trained or available.")
+        try:
+            # Prepare forecast date range
+            forecast_dates = pd.date_range(start=self.df.index[-1] + pd.Timedelta(days=1), periods=periods, freq='D')
+            forecast_data = pd.DataFrame(index=forecast_dates, columns=[best_model])
 
-          if best_model in ['ARIMA', 'SARIMA']:
-            # Forecasting with ARIMA or SARIMA
-            try:
-                # Try using forecast with steps to get future values
-                forecast_values, confint = model_data.predict(n_periods=periods, return_conf_int=True)
-                #forecast, confint = model.predict(n_periods=n_periods, return_conf_int=True)
-                
-                # If forecast_values is not a Series, convert it
-                if not isinstance(forecast_values, pd.Series):
-                    forecast_values = pd.Series(forecast_values, index=forecast_dates)
-                
-                # Assign forecasted values to the 'forecast' column in forecast_data
-                forecast_data['forecast'] = forecast_values
-                forecast_data['conf_upper'] = confint[:,1]
-                forecast_data['conf_lower'] = confint[:,0]
+            # Check if the model exists in self.model
+            model_data = self.model.get(best_model)
+            if not model_data:
+                raise ValueError(f"Model '{best_model}' is not trained or available.")
 
-            except Exception as e:
-                self.logger.error(f"Error generating forecast with ARIMA/SARIMA: {e}")
-                raise ValueError("ARIMA/SARIMA forecasting failed")
-                  
-          elif best_model == 'LSTM':
-              # Forecasting with LSTM
-              seq_length = model_data['seq_length']
-              model = model_data['model']
-              data = np.array(self.train[self.column].values[-seq_length:].reshape(-1, 1))
-              predictions = []
-              residuals = []
+            # Forecast based on model type
+            if best_model in ['ARIMA', 'SARIMA']:
+                # Forecasting with ARIMA or SARIMA
+                try:
+                    forecast_values, confint = model_data.predict(n_periods=periods, return_conf_int=True)
 
-              # Loop to make predictions for each period
-              for _ in range(periods):
-                  pred = model.predict(data.reshape(1, seq_length, 1))
-                  predictions.append(pred[0, 0])
+                    # If forecast_values is not a Series, convert it
+                    if not isinstance(forecast_values, pd.Series):
+                        forecast_values = pd.Series(forecast_values, index=forecast_dates)
+                    
+                    # Assign forecasted values to the 'forecast' column in forecast_data
+                    forecast_data['forecast'] = forecast_values
+                    forecast_data['conf_upper'] = confint[:, 1]
+                    forecast_data['conf_lower'] = confint[:, 0]
 
-                  # Update data with the predicted value for the next iteration
-                  data = np.append(data[1:], pred[0, 0]).reshape(-1, 1)
-                  residuals.append(self.train[self.column].iloc[-1] - pred[0, 0])
+                except Exception as e:
+                    self.logger.error(f"Error generating forecast with ARIMA/SARIMA: {e}")
+                    raise ValueError("ARIMA/SARIMA forecasting failed")
 
-              # Add prediction interval estimation based on residuals
-              std_dev = np.std(residuals)
-              forecast_data['forecast'] = predictions
-              z_score = 1.96  # for 95% confidence level
-              forecast_data['conf_lower'] = forecast_data['forecast'] - std_dev * z_score
-              forecast_data['conf_upper'] = forecast_data['forecast'] + std_dev * z_score
+            elif best_model == 'LSTM':
+                # Forecasting with LSTM
+                seq_length = model_data['seq_length']
+                model = model_data['model']
+                data = np.array(self.train[self.column].values[-seq_length:].reshape(-1, 1))
+                predictions = []
+                residuals = []
 
-          # Inverse scale the forecast results
-          forecast_data[['forecast', 'conf_lower', 'conf_upper']] = self.scaler.inverse_transform(forecast_data[['forecast', 'conf_lower', 'conf_upper']])
+                # Loop to make predictions for each period
+                for _ in range(periods):
+                    pred = model.predict(data.reshape(1, seq_length, 1))
+                    predictions.append(pred[0, 0])
 
-          # Save forecast results to CSV
-          forecast_data.to_csv(output_file)
-          self.logger.info(f"Forecast results saved to {output_file}")
+                    # Update data with the predicted value for the next iteration
+                    data = np.append(data[1:], pred[0, 0]).reshape(-1, 1)
+                    residuals.append(self.train[self.column].iloc[-1] - pred[0, 0])
 
-      except Exception as e:
-          self.logger.error(f"Error in forecasting: {e}")
-          raise ValueError("Forecasting failed")
+                # Add prediction interval estimation based on residuals
+                std_dev = np.std(residuals)
+                forecast_data['forecast'] = predictions
+                z_score = 1.96  # for 95% confidence level
+                forecast_data['conf_lower'] = forecast_data['forecast'] - std_dev * z_score
+                forecast_data['conf_upper'] = forecast_data['forecast'] + std_dev * z_score
+
+            # Inverse scale the forecast results
+            forecast_data[['forecast', 'conf_lower', 'conf_upper']] = self.scaler.inverse_transform(forecast_data[['forecast', 'conf_lower', 'conf_upper']])
+
+            # Save forecast results to CSV
+            forecast_data.to_csv(output_file)
+            self.logger.info(f"Forecast results saved to {output_file}")
+
+        except Exception as e:
+            self.logger.error(f"Error in forecasting: {e}")
+            raise ValueError("Forecasting failed")
+
