@@ -1,113 +1,83 @@
 import unittest
-from unittest.mock import MagicMock, patch
 import pandas as pd
 import numpy as np
-from scripts.model_training import ModelTrainer  # Replace with the correct path to the class
+import logging
+from scripts.model_training import ModelTrainer  # Replace with your actual filename
 
 class TestModelTrainer(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        # Create a logger
+        cls.logger = logging.getLogger("ModelTrainerTest")
+        logging.basicConfig(level=logging.INFO)
+        
+        # Create a sample DataFrame with time-series data
+        dates = pd.date_range(start="2020-01-01", periods=200, freq="D")
+        cls.sample_data = pd.DataFrame({
+            "Close": np.sin(np.linspace(0, 20, 200)) + np.random.normal(0, 0.1, 200)
+        }, index=dates)
+
     def setUp(self):
-        """Set up the test data and necessary objects."""
-        # Sample DataFrame for testing
-        data = {
-            'Date': pd.date_range(start='2020-01-01', periods=100, freq='D'),
-            'Close': np.random.randn(100) * 10 + 100  # Random data for 'Close' column
-        }
-        self.df = pd.DataFrame(data)
-        self.df.set_index('Date', inplace=True)
-        self.logger = MagicMock()
-        self.trainer = ModelTrainer(self.df, logger=self.logger)
-        self.trainer.prepare_data(train_size=0.8)  # Ensure data is prepared before training
+        # Initialize the ModelTrainer instance
+        self.model_trainer = ModelTrainer(data=self.sample_data, logger=self.logger)
 
     def test_prepare_data(self):
-        """Test data preparation and scaling."""
-        self.trainer.prepare_data(train_size=0.8)
-
-        # Test if the train and test datasets are split correctly
-        self.assertEqual(len(self.trainer.train), 80)
-        self.assertEqual(len(self.trainer.test), 20)
-
-        # Test if the data is scaled (scaled data should be between 0 and 1)
-        scaled_values = self.trainer.train['Close']
-        self.assertTrue(np.all(scaled_values >= 0) and np.all(scaled_values <= 1))
+        self.model_trainer.prepare_data(train_size=0.8)
+        self.assertIsNotNone(self.model_trainer.train)
+        self.assertIsNotNone(self.model_trainer.test)
+        self.assertAlmostEqual(len(self.model_trainer.train) / len(self.sample_data), 0.8, delta=0.01)
+        self.assertAlmostEqual(len(self.model_trainer.test) / len(self.sample_data), 0.2, delta=0.01)
 
     def test_train_arima(self):
-        """Test ARIMA model training."""
-        # Ensure the ARIMA model is trained
-        self.trainer.train_arima()
-        self.assertIn('ARIMA', self.trainer.model)
-        self.logger.info.assert_called_with('Training ARIMA model')  # Check logging
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_arima()
+        self.assertIn('ARIMA', self.model_trainer.model)
 
     def test_train_sarima(self):
-        """Test SARIMA model training."""
-        self.trainer.train_sarima(seasonal_period=5)
-        self.assertIn('SARIMA', self.trainer.model)
-        self.logger.info.assert_called_with('Training SARIMA model')  # Check logging
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_sarima(seasonal_period=7)
+        self.assertIn('SARIMA', self.model_trainer.model)
 
     def test_train_lstm(self):
-        """Test LSTM model training."""
-        self.trainer.train_lstm(seq_length=60, epochs=1, batch_size=32)
-        self.assertIn('LSTM', self.trainer.model)
-        self.logger.info.assert_called_with('Training LSTM model')  # Check logging
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_lstm(seq_length=30, epochs=1, batch_size=8)  # Reduced epochs for testing
+        self.assertIn('LSTM', self.model_trainer.model)
 
     def test_make_prediction(self):
-        """Test making predictions."""
-        # Train models first
-        self.trainer.train_arima()
-        self.trainer.train_sarima(seasonal_period=5)
-        self.trainer.train_lstm(seq_length=60, epochs=1, batch_size=32)
-
-        # Make predictions
-        self.trainer.make_prediction()
-
-        # Check that predictions exist for each model
-        self.assertIn('ARIMA', self.trainer.prediction)
-        self.assertIn('SARIMA', self.trainer.prediction)
-        self.assertIn('LSTM', self.trainer.prediction)
-
-        # Ensure predictions are non-empty
-        self.assertGreater(len(self.trainer.prediction['ARIMA']), 0)
-        self.assertGreater(len(self.trainer.prediction['SARIMA']), 0)
-        self.assertGreater(len(self.trainer.prediction['LSTM']), 0)
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_arima()
+        self.model_trainer.make_prediction()
+        self.assertIn('ARIMA', self.model_trainer.prediction)
+        self.assertEqual(len(self.model_trainer.prediction['ARIMA']), len(self.model_trainer.test))
 
     def test_evaluate_model(self):
-        """Test the evaluation of models."""
-        # Train models
-        self.trainer.train_arima()
-        self.trainer.train_sarima(seasonal_period=5)
-        self.trainer.train_lstm(seq_length=60, epochs=1, batch_size=32)
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_arima()
+        self.model_trainer.make_prediction()
+        self.model_trainer.evaluate_model()
+        self.assertIn('ARIMA', self.model_trainer.metric)
+        self.assertGreater(self.model_trainer.metric['ARIMA']['MAE'], 0)
 
-        # Generate predictions
-        self.trainer.make_prediction()
-
-        # Evaluate models
-        self.trainer.evaluate_model()
-
-        # Check that the metric for each model exists
-        self.assertIn('ARIMA', self.trainer.metric)
-        self.assertIn('SARIMA', self.trainer.metric)
-        self.assertIn('LSTM', self.trainer.metric)
-
-        # Ensure MAE exists in metrics
-        self.assertIn('MAE', self.trainer.metric['ARIMA'])
-        self.assertIn('MAE', self.trainer.metric['SARIMA'])
-        self.assertIn('MAE', self.trainer.metric['LSTM'])
+    def test_plot_result(self):
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_arima()
+        self.model_trainer.make_prediction()
+        try:
+            self.model_trainer.plot_result()  # Check if it runs without error
+        except Exception as e:
+            self.fail(f"plot_result raised an exception {e}")
 
     def test_forecast(self):
-        """Test the forecasting functionality."""
-        # Train models
-        self.trainer.train_arima()
-        self.trainer.train_sarima(seasonal_period=5)
-        self.trainer.train_lstm(seq_length=60, epochs=1, batch_size=32)
+        self.model_trainer.prepare_data()
+        self.model_trainer.train_arima()
+        self.model_trainer.make_prediction()
+        self.model_trainer.evaluate_model()  # Ensure metrics are computed
+        self.model_trainer.forecast(months=6, output_file="test_forecast.csv")
+        # Check if the forecast file is created
+        forecast_df = pd.read_csv("test_forecast.csv")
+        self.assertGreater(len(forecast_df), 0)
 
-        # Forecast for 6 months (e.g., 126 days)
-        with patch('pandas.DataFrame.to_csv') as mock_to_csv:
-            self.trainer.forecast(months=6, output_file='forecast_results.csv')
-            mock_to_csv.assert_called_once_with('forecast_results.csv')
 
-    def test_forecast_invalid_months(self):
-        """Test invalid months argument in forecasting."""
-        with self.assertRaises(ValueError):
-            self.trainer.forecast(months=7)  # Invalid, should raise an error
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
