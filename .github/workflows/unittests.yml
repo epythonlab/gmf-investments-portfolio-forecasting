@@ -21,21 +21,31 @@ jobs:
       with:
         python-version: '3.12'  # Ensure the same Python version is used
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-distutils  # Install distutils for Python <3.12
+        sudo apt-get install -y python3-distutils  # Required for Python 3.12
+
+    - name: Set up virtual environment and install dependencies
+      run: |
         python -m venv .venv
         source .venv/bin/activate
-        pip install --upgrade pip
-        pip install setuptools  # Install setuptools (includes distutils)
+        pip install --upgrade pip setuptools wheel
+        pip install numpy --upgrade --force-reinstall  # Ensure compatible version of numpy
+        pip install pmdarima --upgrade --force-reinstall  # Rebuild pmdarima
         pip install -r requirements.txt
-        pip install pytest
+        pip install pytest pytest-cov  # Include pytest plugins for coverage
+
+    - name: Debug environment
+      run: |
+        source .venv/bin/activate
+        python --version
+        pip list  # Debugging installed dependencies
 
     - name: Run tests
       run: |
         source .venv/bin/activate
-        pytest
+        pytest --cov=. --cov-report=xml  # Generate coverage report
 
     - name: Upload coverage report
       if: success()
