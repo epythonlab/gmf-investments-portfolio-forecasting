@@ -24,15 +24,17 @@ Historical data includes Open, High, Low, Close, Volume, and Adjusted Close pric
 - **Libraries**: `pandas`, `numpy`, `statsmodels`, `tensorflow`, `scikit-learn`
 
 ## Project Structure
-- **/.github**: Contains GitHub Actions workflows for building, testing, and deploying the CI/CD pipeline
 
-- **/notebooks**: Includes Jupyter notebooks for exploratory data analysis, model development, and portfolio optimization. Used primarily for prototyping and visualization.
+- **.github/workflows**: Contains GitHub Actions workflows for building, testing, and deploying the CI/CD pipeline
 
-- **/scripts**: Contains modularized Python scripts for core functionalities, such as data processing, model training, data analysis, seasonal analysis, risk analysis, feature forecasting, and portfolio optimization.
+- **notebooks/**: Includes Jupyter notebooks for exploratory data analysis, model development, and portfolio optimization. Used primarily for prototyping and visualization.
+
+- **scripts/**: Contains modularized Python scripts for core functionalities, such as data processing, model training, data analysis, seasonal analysis, risk analysis, feature forecasting, and portfolio optimization.
 
 - **tests/**: Contains unit and integration tests for validating the functionality and robustness of modularized code before deployment.
 
-- **requirements.txt**: Includes Jupyter notebooks for exploratory data analysis, model development, and portfolio optimization. Used primarily for prototyping and visualization.
+- **requirements.txt**: Specifies the list of dependencies and packages required to run the project.
+
 
 
 ## Getting Started
