@@ -24,6 +24,7 @@ Historical data includes Open, High, Low, Close, Volume, and Adjusted Close pric
 - **Libraries**: `pandas`, `numpy`, `statsmodels`, `tensorflow`, `scikit-learn`
 
 ## Project Structure
+
 - **.github/workflows**: Contains GitHub Actions workflows for building, testing, and deploying the CI/CD pipeline
 
 - **notebooks/**: Includes Jupyter notebooks for exploratory data analysis, model development, and portfolio optimization. Used primarily for prototyping and visualization.
