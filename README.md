@@ -36,7 +36,6 @@ Historical data includes Open, High, Low, Close, Volume, and Adjusted Close pric
 - **requirements.txt**: Specifies the list of dependencies and packages required to run the project.
 
 
-
 ## Getting Started
 
 ### Installation
